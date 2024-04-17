@@ -1,3 +1,4 @@
+from argparse import ArgumentParser
 import subprocess
 from dataclasses import dataclass
 import os
@@ -14,8 +15,10 @@ class NetworkInterface:
     state: str
 
 detect_network_change_commands: list[str] = [
+    'function global:GetMinMtu { $(Get-NetIPInterface | Where-Object ConnectionState -EQ "Connected" | Sort-Object NlMtu | Select-Object -first 1).NlMtu }',
+    'function global:GetVpnStatus { $(Get-VpnConnection).ConnectionStatus }',
+    '$onChangeNetwork = { $vpn = global:GetVpnStatus; if ($($vpn -eq $null) -or ($vpn -eq "DisConnected")) { Write-Host "MTU: $(GetMinMtu)" } else { Write-Host "VPN:" } }',
     '$networkChange = [System.Net.NetworkInformation.NetworkChange]',
-    '$onChangeNetwork = { $mtu = $(get-netipinterface | where-object ConnectionState -EQ "Connected" | sort-object NlMtu | select-object -first 1).NlMtu ; write-host "MTU:$mtu" }',
     'Register-ObjectEvent -InputObject $networkChange -EventName NetworkAddressChanged -Action $onChangeNetwork | Out-Null',
     'Wait-Event'
 ]
@@ -57,6 +60,9 @@ def check_permission():
         exit(1)
 
 def main():
+    parser = ArgumentParser()
+    parser.add_argument('-m', '--mtu', type=int, default=1200, help='mtu value when Windows connects to vpn')
+    args = parser.parse_args()
     check_permission()
 
     active_ifs = [x for x in enumerate_network_devices() if x.state == 'UP']
@@ -65,10 +71,17 @@ def main():
     print('start to watch network state...')
     for event in monitor_network_change():
         if event.type == 'MTU':
-            mtu = int(event.value) - 28 # 28 = header bytes
-            for nif in active_ifs:
-                print(f'set mtu | device: {nif.device} | mtu: {mtu}')
-                set_mtu(nif, mtu)
+            mtu = int(event.value)
+            print('vpn disconnected')
+        elif event.type == 'VPN':
+            mtu = args.mtu
+            print('vpn connected')
+        else:
+            raise Exception(f'invalid type | {event}')
+
+        for nif in active_ifs:
+            print(f'set mtu | device: {nif.device} | mtu: {mtu}')
+            set_mtu(nif, mtu)
 
 
 if __name__ == '__main__':
