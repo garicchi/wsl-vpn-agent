@@ -1,0 +1,10 @@
+[Unit]
+Description=wsl-vpn-agent
+Wants=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 -u /opt/wsl-vpn-agent/main.py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
