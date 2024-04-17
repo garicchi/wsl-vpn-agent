@@ -25,8 +25,7 @@ def monitor_network_change():
         '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe', 
         '-c', 
         ';'.join(detect_network_change_commands)],
-        stdout=subprocess.PIPE, 
-        env=os.environ)
+        stdout=subprocess.PIPE)
     while True:
         line = proc_monitor.stdout.readline()
         if not line and proc_monitor.poll() is not None:
